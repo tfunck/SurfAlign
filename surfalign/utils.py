@@ -1,10 +1,43 @@
+import nibabel as nib
+import os
+import numpy as np
+import subprocess
+import shutil
+
+from nibabel.freesurfer import read_morph_data, read_geometry
+from surfalign import utils
+
+
+def load_mesh_ext(in_fn:str, faces_fn:str="", correct_offset:bool=False)->np.ndarray:
+    """Load a mesh file with the correct function based on the file extension.
+    
+    :param in_fn: Filename of the mesh
+    :param faces_fn: Filename of the faces file, defaults to 
+    :param correct_offset: Whether to correct the offset of the mesh, defaults to False
+    :return: Coordinates and faces of the mesh
+    """
+    ext = os.path.splitext(in_fn)[1]
+    faces = None
+    volume_info = None
+    if ext in [".pial", ".white", ".gii", ".sphere", ".inflated"]:
+        surf = nib.load(in_fn)
+        coords, faces, volume_info = surf.darrays[0].data, surf.darrays[1].data, surf.header
+    elif ext == ".npz":
+        coords = np.load(in_fn)["points"]
+    else:
+        coords = h5.File(in_fn)["data"][:]
+        if os.path.splitext(faces_fn)[1] == ".h5":
+            faces_h5 = h5.File(faces_fn, "r")
+            faces = faces_h5["data"][:]
+    return coords, faces
+
 def convert_fs_morph_to_gii(input_filename, mask_filename, output_dir, clobber=False)  :
     """Convert FreeSurfer surface to GIFTI."""
     base = os.path.splitext(os.path.basename(input_filename))[0]
     output_filename = f'{output_dir}/{base}_sulc.shape.gii'
 
     if not os.path.exists(output_filename) or clobber:
-        ar = read_morph_data(input_filename).astype(np.float32)
+        ar = utils.read_morph_data(input_filename).astype(np.float32)
 
         mask = nib.load(mask_filename).darrays[0].data
         #ar[mask==0] = -1.5*np.abs(np.min(ar))
@@ -14,26 +47,6 @@ def convert_fs_morph_to_gii(input_filename, mask_filename, output_dir, clobber=F
         nib.save(g, output_filename)
     return output_filename
 
-def convert_fs_to_gii(input_filename, output_dir, clobber=False):
-    """Convert FreeSurfer surface to GIFTI."""
-    base = '_'.join( os.path.basename(input_filename).split('.')[0:-2])
-    output_filename = f'{output_dir}/{base}.surf.gii'
-
-    if not os.path.exists(output_filename) or clobber:
-        try :
-            ar = read_geometry(input_filename)
-            print('Freesurfer')
-        except ValueError:
-            darrays = nib.load(input_filename).darrays
-            ar = [ darrays[0].data, darrays[1].data ]
-            print('Gifti')
-
-        coordsys = nib.gifti.GiftiCoordSystem(dataspace='NIFTI_XFORM_TALAIRACH', xformspace='NIFTI_XFORM_TALAIRACH')
-        g = nib.gifti.GiftiImage()
-        g.add_gifti_data_array(nib.gifti.GiftiDataArray(ar[0].astype(np.float32), intent='NIFTI_INTENT_POINTSET',coordsys=coordsys))
-        g.add_gifti_data_array(nib.gifti.GiftiDataArray(ar[1].astype(np.int32), intent='NIFTI_INTENT_TRIANGLE', coordsys=None))
-        nib.save(g, output_filename)
-    return output_filename
 
 def get_surface_curvature(surf_filename, output_dir ,n=10, clobber=False):
     """Get surface curvature using mris_curvature."""
@@ -143,7 +156,7 @@ def remesh_surface(surface_in,  output_dir, n=10000, radius=1, clobber=False):
     base = os.path.basename(surface_in)
     surface_out=f'{output_dir}/n-{n}_{base}'
     if not os.path.exists(surface_out) or clobber:
-        n_moving_vertices = mesh_utils.load_mesh_ext(surface_in)[0].shape[0]
+        n_moving_vertices = utils.load_mesh_ext(surface_in)[0].shape[0]
         #cmd = f'mris_remesh --nvert {n} -i {surface_in} -o /tmp/{base} && mris_convert /tmp/{base} {surface_out}'
         #not sure about this->cmd = f'mris_remesh --nvert {n} -i {surface_in} -o {temp_surface_out} && wb_command  -surface-modify-sphere  {temp_surface_out} {radius} {surface_out} -recenter'
         cmd = f'wb_command  -surface-modify-sphere  {surface_in} {radius} {surface_out} -recenter'

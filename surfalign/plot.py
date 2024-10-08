@@ -4,7 +4,6 @@ from surfalign.utils import utils
 import numpy as np
 import os
 import nibabel as nib
-from nibabel.gifti import read as load_gifti
 
 
 def plot_receptor_surf(
@@ -28,7 +27,7 @@ def plot_receptor_surf(
         coords, faces = utils.load_mesh_ext(cortex_filename)
         
         try :
-            ndepths=load_gifti(receptor_surfaces[0]).shape[1]
+            ndepths=nib.load(receptor_surfaces[0]).darrays[0].shape[1]
         except IndexError:
             ndepths=1
 

@@ -96,12 +96,12 @@ def surfalign(
     moving_sphere = utils.surface_modify_sphere(moving_sphere, output_dir, radius=radius, clobber=clobber)
     fixed_sphere = utils.surface_modify_sphere(fixed_sphere, output_dir, radius=radius, clobber=clobber)
 
-    init_moving_metrics = utils.get_surface_metrics(moving_mid_cortex, output_mid_dir, metrics=['x', 'y', 'z'],  moving_mask=None, clobber=clobber )
-    init_fixed_metrics= utils.get_surface_metrics(fixed_mid_cortex,  output_mid_dir, metrics=['x', 'y', 'z'], fixed_mask=None, clobber=clobber )
+    init_moving_metrics = metrics.get_surface_metrics(moving_mid_cortex, output_mid_dir, metrics=['x', 'y', 'z'],  moving_mask=None, clobber=clobber )
+    init_fixed_metrics= metrics.get_surface_metrics(fixed_mid_cortex,  output_mid_dir, metrics=['x', 'y', 'z'], fixed_mask=None, clobber=clobber )
 
-    moving_metrics = utils.get_surface_metrics(moving_mid_cortex, moving_mask, output_final_dir, [ 'sulc'], n_sulc=10, n_curv=30, clobber=clobber) 
+    moving_metrics = metrics.get_surface_metrics(moving_mid_cortex, moving_mask, output_final_dir, [ 'sulc'], n_sulc=10, n_curv=30, clobber=clobber) 
     print('\nwb_view', moving_sphere, moving_mid_cortex, moving_metrics, '\n' ) 
-    fixed_metrics= utils.get_surface_metrics(fixed_mid_cortex, fixed_mask, output_final_dir, [ 'sulc'], n_sulc=10, n_curv=10, clobber=clobber) 
+    fixed_metrics= metrics.get_surface_metrics(fixed_mid_cortex, fixed_mask, output_final_dir, [ 'sulc'], n_sulc=10, n_curv=10, clobber=clobber) 
     print('\nwb_view', fixed_sphere, fixed_mid_cortex, fixed_metrics, '\n' )
 
     # Quality control for surface alignment

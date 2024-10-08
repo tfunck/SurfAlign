@@ -1,3 +1,13 @@
+import nibabel as nib
+import os
+import numpy as np
+import subprocess
+import shutil
+
+from nibabel.freesurfer import read_morph_data, read_geometry
+
+from surfalign import utils, plot
+
 
 def msm_align(
         fixed_sphere, 
@@ -51,10 +61,10 @@ def msm_align(
         assert os.path.exists(data_out_rsl)
         print('\nwb_view', fixed_sphere, fixed_data, data_out_rsl, '\n' )
 
-        plot_receptor_surf(
+        plot.plot_receptor_surf(
             [fixed_data], fixed_sphere, output_dir, label='fx_orig', cmap='nipy_spectral', clobber=True
         )
-        plot_receptor_surf(
+        plot.plot_receptor_surf(
             [data_out_rsl], fixed_sphere, output_dir, label='mv_rsl', cmap='nipy_spectral', clobber=True
         )
     
@@ -89,20 +99,5 @@ def msm_resample(rsl_mesh, fixed_mesh, label=None, output_dir:str='', write_darr
         subprocess.run(cmd, shell=True, executable="/bin/bash")
     else :
         pass
-
+    
     return output_label_ext
-    n = nib.load(fixed_mesh).get_arrays_from_intent('NIFTI_INTENT_POINTSET')[0].data.shape[0]
-
-    if write_darrays:
-        label_rsl_list = [] 
-        darrays = nib.load(output_label).darrays
-
-        for i, darray in enumerate(darrays):
-            curr_label_rsl_filename = template_label_rsl_filename.replace('_rsl',f'_{i}_rsl')
-            label_rsl_list.append(curr_label_rsl_filename)
-            if not os.path.exists(curr_label_rsl_filename) or clobber:
-                data = darray.data.astype(np.float32)
-                assert data.shape[0] == n, f"Data shape is {data.shape}"
-                print('Writing to\n\t', curr_label_rsl_filename)
-                write_gifti( data, curr_label_rsl_filename )
-    return label_rsl_list

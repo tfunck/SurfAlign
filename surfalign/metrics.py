@@ -3,7 +3,6 @@ import subprocess
 import shutil
 import numpy as np
 import nibabel as nib
-import brainbuilder.utils.mesh_utils 
 from surfalign import utils
 
 def create_xyz_axis_file(surf_filename, mask_filename, output_dir, axis, clobber=False):
@@ -17,12 +16,26 @@ def create_xyz_axis_file(surf_filename, mask_filename, output_dir, axis, clobber
         zyaxis = coords[:,axis] 
         zyaxis = (zyaxis - zyaxis.min()) / (zyaxis.max() - zyaxis.min())
         zyaxis[mask==0] = -3 * np.abs(np.min(zyaxis))
-        print('MINIMUM', -3 * np.abs(np.min(zyaxis)))
         utils.write_gifti(zyaxis, output_filename)
     return output_filename
 
-def get_surface_sulcal_depth(surf_filename, output_dir, n=10, dist=0.1, clobber=False):
-    """Get sulcal depth using mris_inflate."""
+def get_surface_sulcal_depth(surf_filename: str, output_dir: str, n: int = 10, dist: float = 0.1, clobber: bool = False) -> tuple:
+    """
+    Get sulcal depth using mris_inflate.
+
+    Parameters:
+    surf_filename (str): The filename of the surface file.
+    output_dir (str): The directory where the output files will be saved.
+    n (int, optional): The number of iterations for mris_inflate. Default is 10.
+    dist (float, optional): The distance parameter for mris_inflate. Default is 0.1.
+    clobber (bool, optional): If True, overwrite existing files. Default is False.
+
+    Returns:
+    tuple: A tuple containing the sulcal depth filename and the inflated surface filename.
+
+    Raises:
+    AssertionError: If the sulcal depth file does not exist after processing.
+    """
     base = os.path.basename(surf_filename).replace('.surf.gii','')
 
     if 'lh.' == utils.get_fs_prefix(surf_filename):
@@ -41,15 +54,14 @@ def get_surface_sulcal_depth(surf_filename, output_dir, n=10, dist=0.1, clobber=
         subprocess.run(cmd, shell=True, executable="/bin/bash")
         shutil.move(temp_sulc_filename, sulc_filename)
 
-    
     assert os.path.exists(sulc_filename), f"Could not find sulcal depth file {sulc_filename}"
     return sulc_filename, inflated_filename
 
 
-def get_surface_curvature(surf_filename:str, output_dir ,n=10, clobber=False):
+def get_surface_curvature(surf_filename:str, output_dir ,n=10, clobber=False)->str:
     """Get surface curvature using mris_curvature."""
 
-    target_prefix = get_fs_prefix(surf_filename)
+    target_prefix = utils.get_fs_prefix(surf_filename)
     prefix=''
     if 'lh.' not in target_prefix and 'rh.' not in target_prefix: 
         prefix='unknown.'
@@ -78,7 +90,7 @@ def get_surface_curvature(surf_filename:str, output_dir ,n=10, clobber=False):
 def get_surface_curvature(surf_filename:str, output_dir:str ,n:int=10, clobber:bool=False)->str:
     """Get surface curvature using mris_curvature."""
 
-    target_prefix = get_fs_prefix(surf_filename)
+    target_prefix = utils.get_fs_prefix(surf_filename)
     prefix=''
     if 'lh.' not in target_prefix and 'rh.' not in target_prefix: 
         prefix='unknown.'
@@ -153,13 +165,19 @@ def get_surface_metrics(
     if 'sulc' in metrics : 
         fs_sulc_filename, _ = get_surface_sulcal_depth(surf_filename, output_dir, n=n_sulc, dist=dist, clobber=clobber)
         sulc_filename = utils.convert_fs_morph_to_gii(fs_sulc_filename, mask_filename, output_dir, clobber=clobber)
-        mask_func_gii(sulc_filename, mask_filename)
+        
+        if mask_filename is not None:
+            utils.mask_func_gii(sulc_filename, mask_filename)
+
         metrics_dict['sulc'] = sulc_filename
     
     if 'curv' in metrics:
         fs_curv_filename = get_surface_curvature(surf_filename, output_dir, n=n_curv, clobber=clobber)
         curv_filename = utils.convert_fs_morph_to_gii(fs_curv_filename, mask_filename, output_dir, clobber=clobber)
-        mask_func_gii(curv_filename, mask_filename)
+
+        if mask_filename is not None:
+            utils.mask_func_gii(curv_filename, mask_filename)
+
         metrics_dict['curv'] = curv_filename
 
     if 'mask' in metrics :
