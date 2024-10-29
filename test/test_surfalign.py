@@ -10,8 +10,8 @@ class TestSurfAlign(unittest.TestCase):
         self.output_dir = 'output_test'
         os.makedirs(self.output_dir, exist_ok=True)
 
-        self.fixed_sphere = os.path.join(self.data_dir, 'yerkes19/MacaqueYerkes19.L.sphere.32k_fs_LR.surf.gii')
-        self.fixed_mid_cortex = os.path.join(self.data_dir, 'yerkes19/MacaqueYerkes19.L.mid.32k_fs_LR.surf.gii')
+        self.fixed_sphere = os.path.join(self.data_dir, 'yerkes19/MacaqueYerkes19.R.sphere.32k_fs_LR.surf.gii')
+        self.fixed_mid_cortex = os.path.join(self.data_dir, 'yerkes19/MacaqueYerkes19.R.mid.32k_fs_LR.surf.gii')
         self.moving_sphere = os.path.join(self.data_dir, 'mebrains/rh.MEBRAINS.smoothwm.sphere.surf.gii')
         self.moving_mid_cortex = os.path.join(self.data_dir, 'mebrains/rh.MEBRAINS.mid.surf.gii')
 
@@ -21,18 +21,20 @@ class TestSurfAlign(unittest.TestCase):
         #self.moving_mask = os.path.join(self.data_dir, 'moving_mask.nii')
 
     def tearDown(self):
-        shutil.rmtree(self.output_dir)
+        #shutil.rmtree(self.output_dir)
+        pass
 
     def test_surfalign_basic(self):
         warped_sphere, fixed_sphere, moving_sphere = surfalign(
-            fixed_sphere=self.fixed_sphere,
-            fixed_mid_cortex=self.fixed_mid_cortex,
-            moving_sphere=self.moving_sphere,
-            moving_mid_cortex=self.moving_mid_cortex,
-            output_dir=self.output_dir,
-            radius=1.0,
-            visualize=True,
-            clobber=True
+            fixed_sphere = self.fixed_sphere,
+            fixed_mid_cortex = self.fixed_mid_cortex,
+            moving_sphere = self.moving_sphere,
+            moving_mid_cortex = self.moving_mid_cortex,
+            output_dir = self.output_dir,
+            mov_param = {'n_sulc': 10, 'n_curv': 30},
+            radius = 1.0,
+            wb_visualize = True,
+            clobber = True
         )
         self.assertTrue(os.path.exists(warped_sphere))
         self.assertTrue(os.path.exists(fixed_sphere))

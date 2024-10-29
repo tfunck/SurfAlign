@@ -4,8 +4,23 @@ import numpy as np
 import subprocess
 import shutil
 
+from matplotlib_surface_plotting import plot_surf
 from nibabel.freesurfer import read_morph_data, read_geometry
 from surfalign import utils
+
+def create_mid_surface(smoothwm, pial, output):
+    """Create a mid surface between smoothwm and pial surfaces"""
+    smoothwm = nib.load(smoothwm)
+    pial = nib.load(pial)
+    smoothwm_data = smoothwm.darrays[0].data
+    pial_data = pial.darrays[0].data
+    mid_data = (smoothwm_data + pial_data) / 2
+
+    coordsys = nib.gifti.GiftiCoordSystem(dataspace='NIFTI_XFORM_TALAIRACH', xformspace='NIFTI_XFORM_TALAIRACH')
+    #g.add_gifti_data_array(nib.gifti.GiftiDataArray(ar[0].astype(np.float32), intent='NIFTI_INTENT_POINTSET',coordsys=coordsys))
+    darrays = [nib.gifti.GiftiDataArray(data=mid_data, intent='NIFTI_INTENT_POINTSET',coordsys=coordsys), pial.darrays[1]]
+    mid = nib.gifti.GiftiImage(darrays=darrays)
+    nib.save(mid, output)
 
 
 def load_mesh_ext(in_fn:str, faces_fn:str="", correct_offset:bool=False)->np.ndarray:
@@ -19,9 +34,14 @@ def load_mesh_ext(in_fn:str, faces_fn:str="", correct_offset:bool=False)->np.nda
     ext = os.path.splitext(in_fn)[1]
     faces = None
     volume_info = None
+    print(ext); 
     if ext in [".pial", ".white", ".gii", ".sphere", ".inflated"]:
-        surf = nib.load(in_fn)
-        coords, faces, volume_info = surf.darrays[0].data, surf.darrays[1].data, surf.header
+        try : # try to load as gifti
+            surf = nib.load(in_fn)
+            coords, faces, volume_info = surf.darrays[0].data, surf.darrays[1].data, surf.header
+        except Exception as e: 
+            # try to load as freesurfer
+            coords, faces = read_geometry(in_fn)
     elif ext == ".npz":
         coords = np.load(in_fn)["points"]
     else:
@@ -83,8 +103,8 @@ def convert_fs_morph_to_gii(input_filename, mask_filename, output_dir, clobber=F
     if not os.path.exists(output_filename) or clobber:
         ar = read_morph_data(input_filename).astype(np.float32)
 
-        mask = nib.load(mask_filename).darrays[0].data
-        #ar[mask==0] = -1.5*np.abs(np.min(ar))
+        if mask_filename is not None:
+            mask = nib.load(mask_filename).darrays[0].data
 
         g = nib.gifti.GiftiImage()
         g.add_gifti_data_array(nib.gifti.GiftiDataArray(ar))
@@ -184,11 +204,16 @@ def load_gifti(filename):
     return nib.load(filename).darrays[0].data
 
 def surface_modify_sphere(surface_in, output_dir, radius=1, clobber:bool=False):
+
     surface_out = output_dir+'/'+os.path.basename(surface_in).replace(".surf.gii","_mod.surf.gii")
+
     if not os.path.exists(surface_out) or clobber :
         cmd=f'wb_command  -surface-modify-sphere  {surface_in} {radius} {surface_out} -recenter'
+
         subprocess.run(cmd, shell=True, executable="/bin/bash")
+
         assert os.path.exists(surface_out), f"Could not find resampled surface {surface_out}"
+
     return surface_out
 
 def normalize_func_gii(fn):
@@ -201,5 +226,72 @@ def normalize_func_gii(fn):
     img = nib.gifti.GiftiImage(darrays=[data])
 
     img.to_filename(fn)
+
+
+def create_sphere(cortex_filename:str, output_dir:str, n:int=100, title:str='', clobber:bool=False):
+
+    base = os.path.basename(cortex_filename).replace('.surf.gii','')
+
+    inflated_filename = f'{output_dir}/{base}.inflated'
+    sphere_filename = f'{output_dir}/{base}.sphere'
+    sphere_gii_filename = f'{output_dir}/{base}.sphere.gii'
+    sphere_png = f'{output_dir}/{base}.png'
+
+    if not os.path.exists(inflated_filename) or clobber:
+        cmd = f"mris_inflate -n {n} {cortex_filename} {inflated_filename}"
+        print(cmd)
+
+        subprocess.run(cmd, shell=True, executable="/bin/bash")
     
+    assert os.path.exists(inflated_filename), f"Could not find inflated file {inflated_filename}"
+
+    if not os.path.exists(sphere_filename) or clobber:
+        cmd = f"mris_sphere -q {inflated_filename} {sphere_filename}"
+        print(cmd)
+
+        subprocess.run(cmd, shell=True, executable="/bin/bash")
+    
+    assert os.path.exists(sphere_filename), f"Could not find sphere file {sphere_filename}"
+
+    if not os.path.exists(sphere_gii_filename) or clobber : 
+        cmd = f"mris_convert {sphere_filename} {sphere_gii_filename} "
+        print(cmd)
+
+        subprocess.run(cmd, shell=True, executable="/bin/bash")    
+
+    assert os.path.exists(sphere_gii_filename), f"Could not find sphere file {sphere_filename}"
+
+    if not os.path.exists(sphere_png) or clobber:
+        coords, faces = utils.load_mesh_ext(sphere_filename)
+        v = np.prod(utils.load_mesh_ext(cortex_filename)[0], axis=1) 
+        v = (v - np.mean(v)) / np.std(v)
+        plot_surf(
+            coords,
+            faces,
+            v, 
+            rotate=[90, 270], 
+            title=title,  
+            filename=sphere_png,
+            pvals=np.ones(coords.shape[0]),
+            vmin=np.percentile(v, 2),
+            vmax=np.percentile(v, 98),
+            cmap='nipy_spectral',
+            cmap_label='Sphere'
+        )
+
+    return inflated_filename, sphere_gii_filename
+
+def resample_metrics(metrics_list:str, moving_sphere:str, fixed_sphere:str, output_dir:str, clobber:bool=False):
+    """Resample metrics from moving to fixed sphere."""
+    resampled_metrics_list = []
+    for metric in metrics_list:
+        resampled_metric = f'{output_dir}/{os.path.basename(metric)}'
+        if not os.path.exists(resampled_metric) or clobber:
+            cmd = f'wb_command -metric-resample {metric} {moving_sphere} {fixed_sphere} ADAP_BARY_AREA {resampled_metric}'
+            print(cmd)
+            subprocess.run(cmd, shell=True, executable="/bin/bash")
+        assert os.path.exists(resampled_metric), f"Could not find resampled metric {resampled_metric}"
+        resampled_metrics_list.append(resampled_metric)
+    
+    return resampled_metrics_list
 

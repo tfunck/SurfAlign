@@ -1,10 +1,5 @@
-import nibabel as nib
 import os
-import numpy as np
 import subprocess
-import shutil
-
-from nibabel.freesurfer import read_morph_data, read_geometry
 
 from surfalign import utils, plot
 
@@ -19,7 +14,7 @@ def msm_align(
         output_dir, 
         levels=3,
         trans=None,
-        verbose=True,
+        verbose:int=0,
         clobber=False
         ):
     """Align two surfaces using MSM."""
@@ -33,43 +28,53 @@ def msm_align(
     out_sphere = f'{data_out}sphere.reg.surf.gii'
 
     if not os.path.exists(out_sphere) or not os.path.exists(data_out_rsl) or clobber :
-        cmd = f"msm --inmesh={moving_sphere} --indata={moving_data} --inweight={moving_mask} "
-        cmd += f"  --refmesh={fixed_sphere} --refdata={fixed_data} --refweight={fixed_mask} " 
+
+        cmd = f"msm --inmesh={moving_sphere} --indata={moving_data} "
+
+        if moving_mask is not None :
+           cmd += f' --inweight={moving_mask} '
+
+        cmd += f"  --refmesh={fixed_sphere} --refdata={fixed_data}  " 
+
+        if fixed_mask is not None :
+           cmd += f' --refweight={fixed_mask} '
+
         if trans is not None :
             cmd += f' --trans={trans}'
 
-        cmd += f" --out={data_out} --levels={levels} --verbose=0"       
+        cmd += f" --out={data_out} --levels={levels} --verbose={verbose}"       
 
-        if verbose :
-            print()
-            print('Inputs:')
-            print(f'\tMesh {moving_sphere}')
-            print(f'\tMask: {moving_mask}')
-            print(f'\tData: {moving_data}')
-            print('Reference:')
-            print(f'\tMesh {fixed_sphere}')
-            print(f'\tMask: {fixed_mask}')
-            print(f'\tData: {fixed_data}')
-            print(f'\tOptions:')
-            print(f'\ttrans: {trans}')
-            print('Out')
-            print(f'\tOutput Data: {data_out_rsl}')
-            print(f'\tOutput Sphere: {out_sphere}')
-            print()
-            print(cmd);
+        print()
+        print('Inputs:')
+        print(f'\tMesh {moving_sphere}')
+        print(f'\tMask: {moving_mask}')
+        print(f'\tData: {moving_data}')
+        print('Reference:')
+        print(f'\tMesh {fixed_sphere}')
+        print(f'\tMask: {fixed_mask}')
+        print(f'\tData: {fixed_data}')
+        print(f'\tOptions:')
+        print(f'\ttrans: {trans}')
+        print('Out')
+        print(f'\tOutput Data: {data_out_rsl}')
+        print(f'\tOutput Sphere: {out_sphere}')
+        print()
+        print(cmd);
+
         subprocess.run(cmd, shell=True, executable="/bin/bash")
         assert os.path.exists(data_out_rsl)
-        print('\nwb_view', fixed_sphere, fixed_data, data_out_rsl, '\n' )
 
-        plot.plot_receptor_surf(
-            [fixed_data], fixed_sphere, output_dir, label='fx_orig', cmap='nipy_spectral', clobber=True
+        """
+        plot.plot_surface_metrics(
+            [fixed_data], fixed_sphere, output_dir, labels=['fx_orig'], cmap='nipy_spectral', clobber=True
         )
-        plot.plot_receptor_surf(
-            [data_out_rsl], fixed_sphere, output_dir, label='mv_rsl', cmap='nipy_spectral', clobber=True
+        plot.plot_surface_metrics(
+            [data_out_rsl], fixed_sphere, output_dir, labels=['mv_rsl'], cmap='nipy_spectral', clobber=True
         )
+        """
     
 
-    return out_sphere, data_out_rsl
+    return out_sphere, data_out_rsl 
 
 def msm_resample_list(rsl_mesh, fixed_mesh, labels, output_dir, clobber=False):
     """Apply MSM to labels."""
